@@ -1,0 +1,39 @@
+{
+  "name": "tiny-coding-cli",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "./dist/cli.js",
+  "bin": {
+    "tiny-coding-cli": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ran-Mori/tiny-coding-cli.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ran-Mori/tiny-coding-cli/issues"
+  },
+  "homepage": "https://github.com/Ran-Mori/tiny-coding-cli#readme",
+  "dependencies": {
+    "commander": "^15.0.0",
+    "dotenv": "^17.4.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3"
+  }
+}

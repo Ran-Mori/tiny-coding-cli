@@ -2,9 +2,13 @@
 import { Command } from "commander";
 import { ZodError } from "zod";
 import { runAgent } from "./agent/run.js";
+import { AgentLoopError } from "./agent/toolLoop.js";
 import { loadConfig } from "./config.js";
 import { ModelConfigurationError, ModelRequestError } from "./llm/errors.js";
 import { HttpModelProvider } from "./llm/httpProvider.js";
+import { ConsoleTracer } from "./tracing/consoleTracer.js";
+import { JsonlTracer } from "./tracing/jsonlTracer.js";
+import { createCompositeTracer, nullTracer, type Tracer } from "./tracing/tracer.js";
 
 const program = new Command();
 
@@ -15,16 +19,21 @@ program
   .option("-m, --model <model>", "model name")
   .option("-t, --temperature <number>", "sampling temperature", parseNumber)
   .option("--max-tokens <number>", "maximum response tokens", parseInteger)
+  .option("--verbose", "print trace summaries to stderr")
+  .option("--trace-file <path>", "write full trace events to a JSONL file")
+  .option("--trace-raw", "print full raw trace events with --verbose")
   .action(async (taskParts: string[], options: CliOptions) => {
     try {
       const config = loadConfig();
       const task = taskParts.join(" ").trim();
+      const tracer = createTracer(options);
 
       const provider = new HttpModelProvider({
         baseUrl: config.modelBaseUrl,
         apiKey: config.modelApiKey,
         timeoutMs: config.modelTimeoutMs,
-        defaultHeaders: buildOpenRouterHeaders(config)
+        defaultHeaders: buildOpenRouterHeaders(config),
+        tracer
       });
 
       const response = await runAgent({
@@ -33,19 +42,11 @@ program
         model: options.model ?? config.modelName,
         temperature: options.temperature,
         maxTokens: options.maxTokens,
-        stream: config.modelStream,
-        onToken: config.modelStream
-          ? (token) => {
-              process.stdout.write(token);
-            }
-          : undefined
+        workspaceRoot: process.cwd(),
+        tracer
       });
 
-      if (config.modelStream) {
-        process.stdout.write("\n");
-      } else {
-        console.log(response);
-      }
+      console.log(response);
     } catch (error) {
       handleCliError(error);
     }
@@ -57,6 +58,9 @@ type CliOptions = {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  verbose?: boolean;
+  traceFile?: string;
+  traceRaw?: boolean;
 };
 
 type OpenRouterHeaderConfig = {
@@ -78,6 +82,24 @@ function buildOpenRouterHeaders(
   }
 
   return headers;
+}
+
+function createTracer(options: CliOptions): Tracer {
+  const tracers: Tracer[] = [];
+
+  if (options.verbose) {
+    tracers.push(
+      new ConsoleTracer({
+        raw: options.traceRaw
+      })
+    );
+  }
+
+  if (options.traceFile) {
+    tracers.push(new JsonlTracer(options.traceFile));
+  }
+
+  return tracers.length > 0 ? createCompositeTracer(tracers) : nullTracer;
 }
 
 function parseNumber(value: string): number {
@@ -109,6 +131,11 @@ function handleCliError(error: unknown): void {
     if (error.responseBody) {
       console.error(error.responseBody);
     }
+    process.exit(1);
+  }
+
+  if (error instanceof AgentLoopError) {
+    console.error(`Agent error: ${error.message}`);
     process.exit(1);
   }
 

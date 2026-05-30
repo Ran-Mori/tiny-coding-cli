@@ -1,5 +1,6 @@
-import { SYSTEM_PROMPT } from "./prompt.js";
 import type { ModelProvider } from "../llm/provider.js";
+import type { Tracer } from "../tracing/tracer.js";
+import { runToolLoop } from "./toolLoop.js";
 
 export type RunAgentOptions = {
   task: string;
@@ -7,30 +8,18 @@ export type RunAgentOptions = {
   model: string;
   temperature?: number;
   maxTokens?: number;
-  stream?: boolean;
-  onToken?: (token: string) => void;
+  workspaceRoot: string;
+  tracer?: Tracer;
 };
 
 export async function runAgent(options: RunAgentOptions): Promise<string> {
-  const result = await options.provider.generate(
-    [
-      {
-        role: "system",
-        content: SYSTEM_PROMPT
-      },
-      {
-        role: "user",
-        content: options.task
-      }
-    ],
-    {
-      model: options.model,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      stream: options.stream,
-      onToken: options.onToken
-    }
-  );
-
-  return result.text;
+  return runToolLoop({
+    task: options.task,
+    provider: options.provider,
+    model: options.model,
+    temperature: options.temperature,
+    maxTokens: options.maxTokens,
+    workspaceRoot: options.workspaceRoot,
+    tracer: options.tracer
+  });
 }
